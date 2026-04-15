@@ -1,0 +1,974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Exome 2.5 Coverage Explorer · Héritas</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <style>
+    :root {
+      --bg: #0d0f12;
+      --surface: #13161b;
+      --surface2: #1a1e25;
+      --surface3: #21262f;
+      --border: rgba(255,255,255,0.07);
+      --border2: rgba(255,255,255,0.13);
+      --text: #e8eaf0;
+      --text2: #8b90a0;
+      --text3: #555a68;
+      --accent: #3b82f6;
+      --accent2: #1d4ed8;
+      --ok: #22c55e;
+      --ok-bg: rgba(34,197,94,0.1);
+      --ok-border: rgba(34,197,94,0.25);
+      --warn: #f59e0b;
+      --warn-bg: rgba(245,158,11,0.1);
+      --warn-border: rgba(245,158,11,0.25);
+      --fail: #ef4444;
+      --fail-bg: rgba(239,68,68,0.1);
+      --fail-border: rgba(239,68,68,0.25);
+      --recurrent: rgba(239,68,68,0.08);
+      --focal: rgba(245,158,11,0.08);
+      --radius: 8px;
+      --radius-lg: 12px;
+      --font: 'IBM Plex Sans', system-ui, sans-serif;
+      --mono: 'IBM Plex Mono', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* ── TOP BAR ── */
+    .topbar {
+      position: sticky; top: 0; z-index: 100;
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 0 28px;
+      height: 52px;
+      background: rgba(13,15,18,0.92);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-left { display: flex; align-items: center; gap: 14px; }
+    .topbar-logo {
+      font-family: var(--mono);
+      font-size: 13px; font-weight: 500;
+      color: var(--accent);
+      letter-spacing: 0.5px;
+    }
+    .topbar-sep { width: 1px; height: 20px; background: var(--border2); }
+    .topbar-title { font-size: 13px; color: var(--text2); }
+    .topbar-right { display: flex; align-items: center; gap: 8px; }
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 20px; font-size: 11px;
+      border: 1px solid var(--border2); color: var(--text2);
+    }
+    .chip-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+
+    /* ── LAYOUT ── */
+    .layout { display: flex; height: calc(100vh - 52px); overflow: hidden; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 300px; flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      overflow-y: auto;
+    }
+    .sidebar-section { padding: 20px; border-bottom: 1px solid var(--border); }
+    .sidebar-label {
+      font-size: 10px; font-weight: 500; letter-spacing: 1px;
+      text-transform: uppercase; color: var(--text3);
+      margin-bottom: 10px;
+    }
+
+    /* Load zone */
+    .load-zone {
+      border: 1px dashed var(--border2);
+      border-radius: var(--radius-lg);
+      padding: 20px 16px; text-align: center;
+      cursor: pointer; transition: all 0.15s;
+    }
+    .load-zone:hover { border-color: var(--accent); background: rgba(59,130,246,0.04); }
+    .load-zone.drag { border-color: var(--accent); background: rgba(59,130,246,0.08); }
+    .load-zone.loaded { border-color: var(--ok); border-style: solid; background: var(--ok-bg); }
+    .load-zone-icon { font-size: 22px; margin-bottom: 6px; }
+    .load-zone p { font-size: 12px; color: var(--text2); }
+    .load-zone strong { color: var(--text); }
+    .load-status { font-size: 11px; color: var(--ok); margin-top: 8px; font-family: var(--mono); }
+
+    /* Search */
+    .search-input, textarea, select {
+      width: 100%;
+      background: var(--surface2);
+      border: 1px solid var(--border2);
+      border-radius: var(--radius);
+      padding: 8px 12px;
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--text);
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .search-input:focus, textarea:focus, select:focus { border-color: var(--accent); }
+    textarea { font-family: var(--mono); font-size: 11px; resize: vertical; height: 100px; }
+    select { cursor: pointer; }
+    select option { background: var(--surface2); }
+
+    .input-label { font-size: 11px; color: var(--text3); margin-bottom: 5px; }
+
+    .presets-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 8px; }
+    .preset-btn {
+      background: var(--surface2); border: 1px solid var(--border2);
+      border-radius: var(--radius); padding: 5px 8px;
+      font-size: 10px; font-family: var(--mono); color: var(--text2);
+      cursor: pointer; text-align: left; transition: all 0.12s;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .preset-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      padding: 8px 16px; border-radius: var(--radius);
+      border: 1px solid var(--border2); background: transparent;
+      font-size: 13px; font-family: var(--font); font-weight: 500;
+      color: var(--text); cursor: pointer; transition: all 0.12s;
+    }
+    .btn:hover { background: var(--surface3); border-color: var(--border2); }
+    .btn-primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .btn-primary:hover { background: var(--accent2); border-color: var(--accent2); }
+    .btn-sm { padding: 5px 10px; font-size: 11px; }
+    .btn-row { display: flex; gap: 6px; margin-top: 10px; }
+
+    .filter-group { display: flex; flex-direction: column; gap: 8px; }
+
+    /* Global metrics */
+    .global-metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .gm-card { background: var(--surface2); border-radius: var(--radius); padding: 10px 12px; }
+    .gm-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+    .gm-val { font-size: 18px; font-weight: 500; font-family: var(--mono); margin-top: 2px; }
+    .gm-sub { font-size: 10px; color: var(--text3); margin-top: 1px; }
+
+    /* ── MAIN CONTENT ── */
+    .main { flex: 1; overflow-y: auto; padding: 24px 28px; }
+
+    /* Summary strip */
+    .summary-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
+    .sc {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 16px;
+    }
+    .sc-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.8px; }
+    .sc-val { font-size: 26px; font-weight: 300; font-family: var(--mono); margin: 6px 0 4px; }
+    .sc-sub { font-size: 11px; color: var(--text3); }
+
+    /* Charts */
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+    .chart-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 16px;
+    }
+    .chart-card.wide { grid-column: 1 / -1; }
+    .chart-card-title { font-size: 11px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .chart-wrap { position: relative; width: 100%; }
+    .legend-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 8px; }
+    .leg { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text2); }
+    .leg-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .leg-sq { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+    /* Table section */
+    .section-header {
+      display: flex; align-items: center; justify-content: space-between;
+      margin-bottom: 12px;
+    }
+    .section-title { font-size: 13px; font-weight: 500; color: var(--text); display: flex; align-items: center; gap: 8px; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 20px;
+      font-size: 10px; font-weight: 500; font-family: var(--mono);
+    }
+    .badge-ok { background: var(--ok-bg); color: var(--ok); border: 1px solid var(--ok-border); }
+    .badge-warn { background: var(--warn-bg); color: var(--warn); border: 1px solid var(--warn-border); }
+    .badge-fail { background: var(--fail-bg); color: var(--fail); border: 1px solid var(--fail-border); }
+    .badge-neutral { background: var(--surface3); color: var(--text2); border: 1px solid var(--border2); }
+
+    .not-found { font-size: 11px; color: var(--fail); background: var(--fail-bg); border: 1px solid var(--fail-border); padding: 6px 12px; border-radius: var(--radius); margin-bottom: 12px; font-family: var(--mono); }
+
+    /* Gene table */
+    .table-wrap { overflow-x: auto; border-radius: var(--radius-lg); border: 1px solid var(--border); }
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    thead th {
+      background: var(--surface); padding: 10px 14px;
+      font-size: 10px; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;
+      color: var(--text3); text-align: left; white-space: nowrap;
+      border-bottom: 1px solid var(--border); cursor: pointer; user-select: none;
+    }
+    thead th:hover { color: var(--text2); }
+    thead th.sorted { color: var(--accent); }
+    tbody tr {
+      border-bottom: 1px solid var(--border);
+      cursor: pointer; transition: background 0.1s;
+    }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody tr.selected { background: rgba(59,130,246,0.08); }
+    td { padding: 9px 14px; color: var(--text); white-space: nowrap; }
+    td.gene-col { font-family: var(--mono); font-size: 13px; font-weight: 500; }
+
+    .cov-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .cov-track { height: 4px; border-radius: 2px; background: var(--surface3); width: 70px; flex-shrink: 0; }
+    .cov-fill { height: 100%; border-radius: 2px; }
+    .cov-val { font-family: var(--mono); font-size: 11px; }
+
+    .pct-wrap { display: flex; align-items: center; gap: 6px; }
+    .pct-bar { height: 4px; border-radius: 2px; display: inline-block; }
+    .pct-val { font-family: var(--mono); font-size: 11px; }
+
+    /* Detail panel */
+    .detail-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); margin-top: 20px; overflow: hidden;
+    }
+    .detail-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 16px 20px; border-bottom: 1px solid var(--border);
+      background: var(--surface2);
+    }
+    .detail-gene-name { font-family: var(--mono); font-size: 20px; font-weight: 500; }
+    .detail-stats-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 1px; background: var(--border); }
+    .detail-stat {
+      background: var(--surface); padding: 14px 18px;
+    }
+    .detail-stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.5px; }
+    .detail-stat-val { font-size: 18px; font-weight: 500; font-family: var(--mono); margin-top: 4px; }
+
+    .tabs { display: flex; gap: 0; border-bottom: 1px solid var(--border); background: var(--surface2); }
+    .tab { padding: 10px 18px; font-size: 12px; color: var(--text3); cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.12s; }
+    .tab:hover { color: var(--text2); }
+    .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+    .tab-panel { display: none; padding: 16px 20px; }
+    .tab-panel.active { display: block; }
+
+    .region-table thead th { background: var(--surface2); }
+    .region-table tbody tr:hover { background: var(--surface3); }
+    .region-row-recurrent { background: var(--recurrent) !important; }
+    .region-row-focal { background: var(--focal) !important; }
+
+    .empty-msg { padding: 32px; text-align: center; color: var(--text3); font-size: 13px; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+    /* No data state */
+    .no-data-state {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 60vh; gap: 12px; color: var(--text3);
+    }
+    .no-data-icon { font-size: 40px; opacity: 0.3; }
+    .no-data-title { font-size: 15px; color: var(--text2); }
+    .no-data-sub { font-size: 12px; text-align: center; max-width: 300px; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <span class="topbar-logo">HÉRITAS</span>
+    <div class="topbar-sep"></div>
+    <span class="topbar-title">Exome 2.5 Coverage Explorer</span>
+  </div>
+  <div class="topbar-right">
+    <div class="chip"><span class="chip-dot"></span>DRAGEN · Illumina Exome 2.5</div>
+    <div class="chip" id="sampleChip">— samples</div>
+  </div>
+</div>
+
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Data source</div>
+      <div class="load-zone" id="loadZone">
+        <div class="load-zone-icon">📂</div>
+        <p><strong>Drop CSV files here</strong></p>
+        <p style="margin-top:4px;">gene_level_v2.csv<br>low_regions_v2.csv</p>
+        <input type="file" id="fileInput" multiple accept=".csv" style="display:none">
+        <div class="load-status" id="loadStatus"></div>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Gene search</div>
+      <div class="input-label">Single gene</div>
+      <input type="text" class="search-input" id="singleSearch" placeholder="BRCA1, TP53, ATM…" autocomplete="off" />
+      <div style="margin: 10px 0; text-align:center; font-size:11px; color:var(--text3);">— or —</div>
+      <div class="input-label">Panel / gene list</div>
+      <textarea id="panelInput" placeholder="Paste genes one per line or comma-separated&#10;&#10;BRCA1&#10;BRCA2&#10;TP53&#10;…"></textarea>
+      <div class="btn-row">
+        <button class="btn btn-primary" style="flex:1;" id="searchBtn">Search</button>
+        <button class="btn btn-sm" id="clearBtn">Clear</button>
+      </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Clinical presets</div>
+      <div class="presets-grid" id="presetsGrid"></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-label">Filters</div>
+      <div class="filter-group">
+        <div>
+          <div class="input-label">Status</div>
+          <select id="statusFilter">
+            <option value="ALL">All statuses</option>
+            <option value="FAIL">FAIL only</option>
+            <option value="WARNING">WARNING only</option>
+            <option value="OK">OK only</option>
+          </select>
+        </div>
+        <div>
+          <div class="input-label">Sort by</div>
+          <select id="sortBy">
+            <option value="name">Gene name A→Z</option>
+            <option value="cov_asc">Coverage ↑ (lowest first)</option>
+            <option value="cov_desc">Coverage ↓ (highest first)</option>
+            <option value="fail_first">FAIL → WARNING → OK</option>
+            <option value="recurrent_desc">Recurrent low regions ↓</option>
+            <option value="pge_asc">% bases ≥20X ↑</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-section" id="globalMetricsSection" style="display:none;">
+      <div class="sidebar-label">Dataset overview</div>
+      <div class="global-metrics">
+        <div class="gm-card">
+          <div class="gm-label">Genes</div>
+          <div class="gm-val" id="gmGenes">—</div>
+          <div class="gm-sub">gene symbols</div>
+        </div>
+        <div class="gm-card">
+          <div class="gm-label">Samples</div>
+          <div class="gm-val" style="color:var(--ok)">17</div>
+          <div class="gm-sub">QC-pass</div>
+        </div>
+        <div class="gm-card">
+          <div class="gm-label">FAIL</div>
+          <div class="gm-val" style="color:var(--fail)" id="gmFail">—</div>
+          <div class="gm-sub" id="gmFailPct"></div>
+        </div>
+        <div class="gm-card">
+          <div class="gm-label">Mean cov.</div>
+          <div class="gm-val" id="gmMean">—</div>
+          <div class="gm-sub">all genes</div>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="mainContent">
+    <div class="no-data-state" id="noDataState">
+      <div class="no-data-icon">🧬</div>
+      <div class="no-data-title">Load coverage data to begin</div>
+      <div class="no-data-sub">Drop gene_level_v2.csv and low_regions_v2.csv in the sidebar, then search for a gene or panel.</div>
+    </div>
+
+    <div id="resultsArea" style="display:none;">
+      <div id="notFoundMsg"></div>
+
+      <!-- Summary strip -->
+      <div class="summary-strip" id="summaryStrip"></div>
+
+      <!-- Charts -->
+      <div class="charts-row" id="chartsRow">
+        <div class="chart-card">
+          <div class="chart-card-title">Coverage distribution</div>
+          <div class="chart-wrap" style="height:180px;"><canvas id="distChart" role="img" aria-label="Coverage distribution histogram"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Gene status</div>
+          <div class="legend-row" id="statusLegend"></div>
+          <div class="chart-wrap" style="height:150px;"><canvas id="statusChart" role="img" aria-label="Gene status donut"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">% bases ≥20X per gene</div>
+          <div class="chart-wrap" style="height:180px;"><canvas id="pgeChart" role="img" aria-label="Percent bases at 20x per gene"></canvas></div>
+        </div>
+        <div class="chart-card wide">
+          <div class="chart-card-title">Mean coverage per gene (sorted) — colored by status</div>
+          <div class="legend-row">
+            <span class="leg"><span class="leg-sq" style="background:var(--ok);"></span>OK</span>
+            <span class="leg"><span class="leg-sq" style="background:var(--warn);"></span>WARNING</span>
+            <span class="leg"><span class="leg-sq" style="background:var(--fail);"></span>FAIL</span>
+            <span class="leg" style="margin-left:auto;font-size:10px;color:var(--text3);">Click bar to inspect gene</span>
+          </div>
+          <div class="chart-wrap" id="barChartWrap" style="height:220px;"><canvas id="barChart" role="img" aria-label="Per-gene mean coverage bar chart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Gene table -->
+      <div class="section-header">
+        <div class="section-title">
+          Gene results
+          <span class="badge badge-neutral" id="resultCount">0</span>
+        </div>
+      </div>
+
+      <div class="table-wrap">
+        <table id="geneTable">
+          <thead>
+            <tr>
+              <th data-col="g">Gene <span class="sort-arr">↕</span></th>
+              <th data-col="nr">Regions <span class="sort-arr">↕</span></th>
+              <th data-col="tb">Total bp <span class="sort-arr">↕</span></th>
+              <th data-col="mc">Mean cov. <span class="sort-arr">↕</span></th>
+              <th data-col="pge">% bases ≥20X <span class="sort-arr">↕</span></th>
+              <th data-col="rl">Recurrent low <span class="sort-arr">↕</span></th>
+              <th data-col="la">Any low <span class="sort-arr">↕</span></th>
+              <th data-col="st">Status <span class="sort-arr">↕</span></th>
+            </tr>
+          </thead>
+          <tbody id="geneTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Detail panel -->
+      <div class="detail-panel" id="detailPanel" style="display:none;">
+        <div class="detail-header">
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span class="detail-gene-name" id="detailGeneName"></span>
+            <span id="detailBadge"></span>
+          </div>
+          <button class="btn btn-sm" id="closeDetail">✕ Close</button>
+        </div>
+        <div class="detail-stats-row" id="detailStatsRow"></div>
+        <div class="tabs">
+          <div class="tab active" data-tab="low-regions">Low-coverage regions</div>
+          <div class="tab" data-tab="map">Coverage map</div>
+        </div>
+        <div class="tab-panel active" id="tab-low-regions">
+          <div id="regionTableWrap"></div>
+        </div>
+        <div class="tab-panel" id="tab-map">
+          <div class="chart-wrap" style="height:200px;"><canvas id="regionMapChart" role="img" aria-label="Region coverage scatter"></canvas></div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+</div>
+
+<script>
+// ── DATA STORE ──────────────────────────────────────────────────────────────
+let GENE = {};   // key: GENE_NAME_UPPER → gene object
+let LOW  = {};   // key: GENE_NAME_UPPER → array of low region objects
+let dataLoaded = false;
+let charts = {};
+let regionMapChart = null;
+let currentResults = [];
+let colSort = { col: null, dir: 1 };
+
+// ── PRESETS ─────────────────────────────────────────────────────────────────
+const PRESETS = {
+  'BRCA panel':     'BRCA1,BRCA2,PALB2,BRIP1,RAD51C,RAD51D,CHEK2,ATM,NBN,BARD1',
+  'Lynch / MMR':    'MLH1,MSH2,MSH6,PMS2,EPCAM',
+  'Li-Fraumeni':    'TP53,CHEK2,ATM,BRCA1,BRCA2',
+  'APC / colon':    'APC,MUTYH,MLH1,MSH2,MSH6,PMS2,EPCAM,SMAD4,BMPR1A,STK11',
+  'PTEN / hamartoma': 'PTEN,STK11,SMAD4,BMPR1A',
+  'Cardiac panel':  'MYH7,MYBPC3,TNNT2,TNNI3,TPM1,MYL2,MYL3,SCN5A,KCNQ1,KCNH2',
+};
+
+// ── HELPERS ─────────────────────────────────────────────────────────────────
+const covColor = c => c < 20 ? '#ef4444' : c < 50 ? '#f59e0b' : c < 80 ? '#63b3ed' : '#22c55e';
+const statusColor = s => s === 'FAIL' ? '#ef4444' : s === 'WARNING' ? '#f59e0b' : '#22c55e';
+const statusBg    = s => s === 'FAIL' ? 'var(--fail-bg)' : s === 'WARNING' ? 'var(--warn-bg)' : 'var(--ok-bg)';
+const statusBorder= s => s === 'FAIL' ? 'var(--fail-border)' : s === 'WARNING' ? 'var(--warn-border)' : 'var(--ok-border)';
+
+function covBarHtml(cov, max=300) {
+  const pct = Math.min(cov / max * 100, 100);
+  return `<div class="cov-bar-wrap">
+    <div class="cov-track"><div class="cov-fill" style="width:${pct.toFixed(1)}%;background:${covColor(cov)};height:4px;border-radius:2px;"></div></div>
+    <span class="cov-val">${cov.toFixed(1)}×</span>
+  </div>`;
+}
+
+function pctHtml(pge) {
+  const col = pge < 0.90 ? '#ef4444' : pge < 0.97 ? '#f59e0b' : '#22c55e';
+  return `<div class="pct-wrap">
+    <span class="pct-bar" style="width:${(pge*60).toFixed(0)}px;background:${col};height:4px;border-radius:2px;"></span>
+    <span class="pct-val">${(pge*100).toFixed(1)}%</span>
+  </div>`;
+}
+
+function parseGeneList(raw) {
+  return [...new Set(
+    raw.split(/[\n,;\t]+/).map(s => s.trim().toUpperCase()).filter(Boolean)
+  )];
+}
+
+// ── FILE LOADING ─────────────────────────────────────────────────────────────
+function loadFiles(files) {
+  const gFile = Array.from(files).find(f => f.name.includes('gene_level'));
+  const lFile = Array.from(files).find(f => f.name.includes('low_region'));
+  if (!gFile && !lFile) { alert('Please drop gene_level_v2.csv and/or low_regions_v2.csv'); return; }
+
+  document.getElementById('loadStatus').textContent = 'Loading…';
+  let pending = (gFile ? 1 : 0) + (lFile ? 1 : 0);
+
+  function done() {
+    pending--;
+    if (pending > 0) return;
+    // Recompute Recurrent_low_regions and Default_status using only regions >4 bp
+    if (Object.keys(LOW).length > 0) {
+      Object.keys(GENE).forEach(key => {
+        const g = GENE[key];
+        const lowRegs = LOW[key] || [];
+        const recCount = lowRegs.filter(r => r.status.includes('Recurrent')).length;
+        g.rl = recCount;
+        if      (recCount >= 10 || g.mc < 20) g.st = 'FAIL';
+        else if (recCount >= 2  || g.mc < 50) g.st = 'WARNING';
+        else g.st = 'OK';
+      });
+    }
+    dataLoaded = true;
+    const zone = document.getElementById('loadZone');
+    zone.className = 'load-zone loaded';
+    zone.querySelector('.load-zone-icon').textContent = '✓';
+    const gCount = Object.keys(GENE).length;
+    const lCount = Object.keys(LOW).length;
+    document.getElementById('loadStatus').textContent =
+      `${gCount.toLocaleString()} genes · ${lCount.toLocaleString()} w/ low regions`;
+    document.getElementById('sampleChip').textContent = '17 QC-pass samples';
+    document.getElementById('globalMetricsSection').style.display = 'block';
+    updateGlobalMetrics();
+    setupPresets();
+  }
+
+  if (gFile) {
+    Papa.parse(gFile, { header: true, skipEmptyLines: true, complete(res) {
+      GENE = {};
+      res.data.forEach(r => {
+        if (r.Entity_type && r.Entity_type !== 'Gene symbol') return;
+        if (!r.Gene) return;
+        GENE[r.Gene.toUpperCase()] = {
+          g: r.Gene,
+          nr: +r.N_regions || 0,
+          tb: +r.Total_bases || 0,
+          mc: parseFloat(r.Mean_coverage) || 0,
+          med: parseFloat(r.Median_coverage) || 0,
+          min: parseFloat(r.Min_region_coverage) || 0,
+          la: +r.Low_regions_any || 0,
+          rl: +r.Recurrent_low_regions || 0,
+          pge: parseFloat(r.Est_pct_bases_ge20) || 0,
+          plo: parseFloat(r.Est_pct_bases_low20) || 0,
+          st: r.Default_status || 'OK'
+        };
+      });
+      done();
+    }});
+  }
+
+  if (lFile) {
+    Papa.parse(lFile, { header: true, skipEmptyLines: true, complete(res) {
+      LOW = {};
+      res.data.forEach(r => {
+        if (!r.Gene) return;
+        if ((+r.Region_len || 0) <= 4) return;  // ignore micro-regions ≤4 bp
+        const key = r.Gene.toUpperCase();
+        if (!LOW[key]) LOW[key] = [];
+        LOW[key].push({
+          chr: r.Chrom, s: +r.Start, e: +r.End,
+          len: +r.Region_len || 0,
+          cov: parseFloat(r.Mean_coverage) || 0,
+          nb: +r.Samples_below_20X || 0,
+          pct: parseFloat(r.Pct_samples_below_20X) || 0,
+          status: r.Region_status || ''
+        });
+      });
+      done();
+    }});
+  }
+}
+
+// ── GLOBAL METRICS ───────────────────────────────────────────────────────────
+function updateGlobalMetrics() {
+  const genes = Object.values(GENE);
+  document.getElementById('gmGenes').textContent = genes.length.toLocaleString();
+  const fail = genes.filter(g => g.st === 'FAIL').length;
+  document.getElementById('gmFail').textContent = fail.toLocaleString();
+  document.getElementById('gmFailPct').textContent = ((fail/genes.length*100).toFixed(1)) + '% of total';
+  const meanAll = (genes.reduce((s,g) => s+g.mc, 0) / genes.length).toFixed(1);
+  document.getElementById('gmMean').textContent = meanAll + '×';
+}
+
+// ── PRESETS ───────────────────────────────────────────────────────────────────
+function setupPresets() {
+  const grid = document.getElementById('presetsGrid');
+  grid.innerHTML = '';
+  Object.keys(PRESETS).forEach(name => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-btn';
+    btn.textContent = name;
+    btn.title = PRESETS[name].replace(/,/g, ', ');
+    btn.onclick = () => {
+      document.getElementById('panelInput').value = PRESETS[name].replace(/,/g, '\n');
+      document.getElementById('singleSearch').value = '';
+      doSearch();
+    };
+    grid.appendChild(btn);
+  });
+}
+
+// ── SEARCH ────────────────────────────────────────────────────────────────────
+function doSearch() {
+  if (!dataLoaded) { alert('Load the CSV files first.'); return; }
+
+  const single = document.getElementById('singleSearch').value.trim().toUpperCase();
+  const panel  = document.getElementById('panelInput').value.trim();
+
+  let query = [];
+  if (single) query = [single];
+  else if (panel) query = parseGeneList(panel);
+  if (!query.length) { alert('Enter at least one gene name.'); return; }
+
+  const found = [], notFound = [];
+  query.forEach(g => GENE[g] ? found.push(GENE[g]) : notFound.push(g));
+
+  const nfEl = document.getElementById('notFoundMsg');
+  nfEl.innerHTML = notFound.length
+    ? `<div class="not-found">Not found in dataset (${notFound.length}): ${notFound.join(', ')}</div>` : '';
+
+  renderResults(found);
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderResults(data) {
+  currentResults = data;
+  colSort = { col: null, dir: 1 };
+  document.getElementById('noDataState').style.display = 'none';
+  document.getElementById('resultsArea').style.display = 'block';
+  document.getElementById('detailPanel').style.display = 'none';
+  renderSummaryStrip(data);
+  renderCharts(data);
+  renderTable(data);
+}
+
+function applyFilters(data) {
+  const sf = document.getElementById('statusFilter').value;
+  let d = sf === 'ALL' ? [...data] : data.filter(g => g.st === sf);
+  const sb = document.getElementById('sortBy').value;
+  if (sb === 'name')          d.sort((a,b) => a.g.localeCompare(b.g));
+  else if (sb === 'cov_asc')  d.sort((a,b) => a.mc - b.mc);
+  else if (sb === 'cov_desc') d.sort((a,b) => b.mc - a.mc);
+  else if (sb === 'fail_first') { const o={FAIL:0,WARNING:1,OK:2}; d.sort((a,b)=>(o[a.st]||2)-(o[b.st]||2)); }
+  else if (sb === 'recurrent_desc') d.sort((a,b) => b.rl - a.rl);
+  else if (sb === 'pge_asc')  d.sort((a,b) => a.pge - b.pge);
+  if (colSort.col) {
+    d.sort((a,b) => {
+      const va = a[colSort.col], vb = b[colSort.col];
+      return colSort.dir * (typeof va === 'string' ? va.localeCompare(vb) : va - vb);
+    });
+  }
+  return d;
+}
+
+function renderSummaryStrip(data) {
+  if (!data.length) return;
+  const ok   = data.filter(g=>g.st==='OK').length;
+  const warn = data.filter(g=>g.st==='WARNING').length;
+  const fail = data.filter(g=>g.st==='FAIL').length;
+  const meanCov = (data.reduce((s,g)=>s+g.mc,0)/data.length).toFixed(1);
+  const meanPge = ((data.reduce((s,g)=>s+g.pge,0)/data.length)*100).toFixed(1);
+  const totalRec = data.reduce((s,g)=>s+g.rl, 0);
+
+  const pcol = +meanPge < 90 ? '#ef4444' : +meanPge < 97 ? '#f59e0b' : '#22c55e';
+  const ccol = +meanCov < 50 ? '#ef4444' : +meanCov < 80 ? '#f59e0b' : '#22c55e';
+
+  document.getElementById('summaryStrip').innerHTML = `
+    <div class="sc">
+      <div class="sc-label">Genes queried</div>
+      <div class="sc-val">${data.length}</div>
+      <div style="display:flex;gap:5px;flex-wrap:wrap;">
+        <span class="badge badge-ok">${ok} OK</span>
+        <span class="badge badge-warn">${warn} WARN</span>
+        <span class="badge badge-fail">${fail} FAIL</span>
+      </div>
+    </div>
+    <div class="sc">
+      <div class="sc-label">Mean coverage</div>
+      <div class="sc-val" style="color:${ccol}">${meanCov}×</div>
+      <div class="sc-sub">across queried genes</div>
+    </div>
+    <div class="sc">
+      <div class="sc-label">Mean % bases ≥20X</div>
+      <div class="sc-val" style="color:${pcol}">${meanPge}%</div>
+      <div class="sc-sub">completeness threshold</div>
+    </div>
+    <div class="sc">
+      <div class="sc-label">Recurrent low regions</div>
+      <div class="sc-val" style="color:${totalRec>0?'#ef4444':'#22c55e'}">${totalRec}</div>
+      <div class="sc-sub">≥20% samples below 20×</div>
+    </div>
+  `;
+}
+
+function renderCharts(data) {
+  ['dist','status','pge','bar'].forEach(k => { if (charts[k]) { charts[k].destroy(); delete charts[k]; } });
+
+  const covBins = [0,20,50,80,120,200,400];
+  const binLabels = ['<20×','20–50×','50–80×','80–120×','120–200×','>200×'];
+  const binCounts = new Array(6).fill(0);
+  data.forEach(g => {
+    const c = g.mc;
+    if (c < 20) binCounts[0]++;
+    else if (c < 50) binCounts[1]++;
+    else if (c < 80) binCounts[2]++;
+    else if (c < 120) binCounts[3]++;
+    else if (c < 200) binCounts[4]++;
+    else binCounts[5]++;
+  });
+
+  charts.dist = new Chart(document.getElementById('distChart'), {
+    type: 'bar',
+    data: { labels: binLabels, datasets: [{ data: binCounts, backgroundColor: ['#ef4444','#f59e0b','#fbbf24','#63b3ed','#22c55e','#16a34a'], borderWidth: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false, color:'rgba(255,255,255,0.05)' }, ticks: { color:'#6b7280', font:{size:9} } },
+        y: { grid: { color:'rgba(255,255,255,0.05)' }, ticks: { color:'#6b7280', font:{size:9} } }
+      }
+    }
+  });
+
+  const ok=data.filter(g=>g.st==='OK').length, warn=data.filter(g=>g.st==='WARNING').length, fail=data.filter(g=>g.st==='FAIL').length;
+  charts.status = new Chart(document.getElementById('statusChart'), {
+    type: 'doughnut',
+    data: { labels:['OK','WARNING','FAIL'], datasets:[{ data:[ok,warn,fail], backgroundColor:['#22c55e','#f59e0b','#ef4444'], borderWidth:0, hoverOffset:4 }] },
+    options: { responsive:true, maintainAspectRatio:false, cutout:'62%', plugins:{ legend:{display:false} } }
+  });
+  document.getElementById('statusLegend').innerHTML = `
+    <span class="leg"><span class="leg-dot" style="background:#22c55e;"></span>OK (${ok})</span>
+    <span class="leg"><span class="leg-dot" style="background:#f59e0b;"></span>WARN (${warn})</span>
+    <span class="leg"><span class="leg-dot" style="background:#ef4444;"></span>FAIL (${fail})</span>
+  `;
+
+  const sortedPge = [...data].sort((a,b)=>a.pge-b.pge);
+  charts.pge = new Chart(document.getElementById('pgeChart'), {
+    type: 'bar',
+    data: { labels: sortedPge.map(g=>g.g), datasets: [{
+      data: sortedPge.map(g=>+(g.pge*100).toFixed(1)),
+      backgroundColor: sortedPge.map(g => g.pge<0.90?'#ef4444':g.pge<0.97?'#f59e0b':'#22c55e'),
+      borderWidth: 0
+    }]},
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false} },
+      scales: {
+        x:{ display: data.length<=20, grid:{display:false}, ticks:{color:'#6b7280',font:{size:8},maxRotation:45,autoSkip:false} },
+        y:{ min:0,max:100, grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#6b7280',font:{size:9},callback:v=>v+'%'} }
+      }
+    }
+  });
+
+  const sortedBar = [...data].sort((a,b)=>a.mc-b.mc);
+  const barH = Math.max(200, sortedBar.length * 24 + 60);
+  document.getElementById('barChartWrap').style.height = barH + 'px';
+
+  charts.bar = new Chart(document.getElementById('barChart'), {
+    type: 'bar',
+    data: { labels: sortedBar.map(g=>g.g), datasets: [{
+      data: sortedBar.map(g=>g.mc),
+      backgroundColor: sortedBar.map(g=>statusColor(g.st)+'99'),
+      borderColor: sortedBar.map(g=>statusColor(g.st)),
+      borderWidth: 1
+    }]},
+    options: {
+      indexAxis: 'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{
+        callbacks: { label: ctx => ` ${ctx.raw.toFixed(1)}× mean coverage` }
+      }},
+      scales: {
+        x:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#6b7280',font:{size:9}}, title:{display:true,text:'Mean coverage (×)',color:'#6b7280',font:{size:10}} },
+        y:{ grid:{display:false}, ticks:{color:'#8b90a0',font:{size:10,family:'IBM Plex Mono'},maxRotation:0} }
+      },
+      onClick: (evt, elements) => {
+        if (!elements.length) return;
+        const gene = sortedBar[elements[0].index];
+        const row = document.querySelector(`#geneTableBody tr[data-gene="${gene.g}"]`);
+        if (row) { row.click(); row.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+      }
+    }
+  });
+}
+
+function renderTable(data) {
+  const display = applyFilters(data);
+  document.getElementById('resultCount').textContent = display.length;
+  const body = document.getElementById('geneTableBody');
+  body.innerHTML = '';
+  if (!display.length) {
+    body.innerHTML = '<tr><td colspan="8" class="empty-msg">No genes match the current filter.</td></tr>';
+    return;
+  }
+  display.forEach(g => {
+    const tr = document.createElement('tr');
+    tr.dataset.gene = g.g;
+    tr.innerHTML = `
+      <td class="gene-col">${g.g}</td>
+      <td>${g.nr}</td>
+      <td style="font-family:var(--mono);font-size:11px;">${g.tb.toLocaleString()}</td>
+      <td>${covBarHtml(g.mc)}</td>
+      <td>${pctHtml(g.pge)}</td>
+      <td style="color:${g.rl>0?'#ef4444':'#22c55e'};font-family:var(--mono);">${g.rl}</td>
+      <td style="font-family:var(--mono);color:var(--text2);">${g.la}</td>
+      <td><span class="badge" style="background:${statusBg(g.st)};color:${statusColor(g.st)};border:1px solid ${statusBorder(g.st)};">${g.st}</span></td>
+    `;
+    tr.onclick = () => showDetail(g, tr);
+    body.appendChild(tr);
+  });
+}
+
+function showDetail(gene, tr) {
+  document.querySelectorAll('#geneTableBody tr').forEach(r => r.classList.remove('selected'));
+  tr.classList.add('selected');
+
+  const panel = document.getElementById('detailPanel');
+  panel.style.display = 'block';
+  panel.scrollIntoView({ behavior:'smooth', block:'nearest' });
+
+  document.getElementById('detailGeneName').textContent = gene.g;
+  document.getElementById('detailBadge').innerHTML =
+    `<span class="badge" style="background:${statusBg(gene.st)};color:${statusColor(gene.st)};border:1px solid ${statusBorder(gene.st)};">${gene.st}</span>`;
+
+  document.getElementById('detailStatsRow').innerHTML = `
+    <div class="detail-stat"><div class="detail-stat-label">Mean coverage</div><div class="detail-stat-val" style="color:${covColor(gene.mc)}">${gene.mc.toFixed(1)}×</div></div>
+    <div class="detail-stat"><div class="detail-stat-label">Median coverage</div><div class="detail-stat-val">${gene.med.toFixed(1)}×</div></div>
+    <div class="detail-stat"><div class="detail-stat-label">% bases ≥20X</div><div class="detail-stat-val" style="color:${gene.pge>=0.97?'#22c55e':gene.pge>=0.9?'#f59e0b':'#ef4444'}">${(gene.pge*100).toFixed(2)}%</div></div>
+    <div class="detail-stat"><div class="detail-stat-label">Total target bp</div><div class="detail-stat-val">${gene.tb.toLocaleString()}</div></div>
+    <div class="detail-stat"><div class="detail-stat-label">Recurrent low / Total</div><div class="detail-stat-val" style="color:${gene.rl>0?'#ef4444':'#22c55e'}">${gene.rl} / ${gene.nr}</div></div>
+  `;
+
+  const lowRegs = (LOW[gene.g.toUpperCase()] || []).slice().sort((a,b)=>a.cov-b.cov);
+  const wrap = document.getElementById('regionTableWrap');
+  if (!lowRegs.length) {
+    wrap.innerHTML = '<div class="empty-msg">No low-coverage regions detected in any QC-pass sample. Full coverage at 20×.</div>';
+  } else {
+    const rows = lowRegs.map(r => {
+      const isRec = r.status.includes('Recurrent');
+      const badgeCls = isRec ? 'badge-fail' : 'badge-warn';
+      const rowClass = isRec ? 'region-row-recurrent' : 'region-row-focal';
+      return `<tr class="${rowClass}">
+        <td style="font-family:var(--mono);font-size:11px;">chr${r.chr}:${r.s.toLocaleString()}–${r.e.toLocaleString()}</td>
+        <td style="font-family:var(--mono);">${r.len} bp</td>
+        <td>${covBarHtml(r.cov, 50)}</td>
+        <td style="font-family:var(--mono);">${r.nb} / 17</td>
+        <td style="font-family:var(--mono);">${(r.pct*100).toFixed(0)}%</td>
+        <td><span class="badge ${badgeCls}" style="font-size:10px;">${isRec?'Recurrent':'Focal'}</span></td>
+      </tr>`;
+    }).join('');
+    wrap.innerHTML = `
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px;">${lowRegs.length} low-coverage regions · sorted by coverage ascending</div>
+      <div style="overflow-x:auto;border-radius:var(--radius);border:1px solid var(--border);">
+        <table class="region-table">
+          <thead><tr>
+            <th>Coordinates (hg38)</th><th>Size</th><th>Mean cov.</th><th>Samples <20×</th><th>% samples</th><th>Type</th>
+          </tr></thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  if (regionMapChart) { regionMapChart.destroy(); regionMapChart = null; }
+  if (lowRegs.length) {
+    setTimeout(() => {
+      const recData = lowRegs.filter(r=>r.status.includes('Recurrent')).map(r=>({x:r.s,y:r.cov}));
+      const focData = lowRegs.filter(r=>!r.status.includes('Recurrent')).map(r=>({x:r.s,y:r.cov}));
+      regionMapChart = new Chart(document.getElementById('regionMapChart'), {
+        type: 'scatter',
+        data: { datasets: [
+          { label:'Recurrent low', data:recData, backgroundColor:'#ef4444aa', pointRadius:5, pointHoverRadius:7 },
+          { label:'Focal low',     data:focData, backgroundColor:'#f59e0baa', pointRadius:5, pointHoverRadius:7 }
+        ]},
+        options: {
+          responsive:true, maintainAspectRatio:false,
+          plugins:{ legend:{ labels:{ color:'#8b90a0', font:{size:10} } } },
+          scales: {
+            x:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#6b7280',font:{size:9},callback:v=>v.toLocaleString()}, title:{display:true,text:'Genomic position',color:'#6b7280',font:{size:10}} },
+            y:{ grid:{color:'rgba(255,255,255,0.05)'}, ticks:{color:'#6b7280',font:{size:9}}, title:{display:true,text:'Mean cov. (×)',color:'#6b7280',font:{size:10}} }
+          }
+        }
+      });
+    }, 60);
+  }
+
+  // tabs reset
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector('.tab[data-tab="low-regions"]').classList.add('active');
+  document.getElementById('tab-low-regions').classList.add('active');
+}
+
+// ── EVENTS ────────────────────────────────────────────────────────────────────
+document.getElementById('loadZone').addEventListener('dragover', e => { e.preventDefault(); e.currentTarget.classList.add('drag'); });
+document.getElementById('loadZone').addEventListener('dragleave', e => e.currentTarget.classList.remove('drag'));
+document.getElementById('loadZone').addEventListener('drop', e => { e.preventDefault(); e.currentTarget.classList.remove('drag'); loadFiles(e.dataTransfer.files); });
+document.getElementById('loadZone').addEventListener('click', () => document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', e => loadFiles(e.target.files));
+document.getElementById('searchBtn').addEventListener('click', doSearch);
+document.getElementById('singleSearch').addEventListener('keydown', e => { if (e.key==='Enter') doSearch(); });
+document.getElementById('clearBtn').addEventListener('click', () => {
+  document.getElementById('singleSearch').value = '';
+  document.getElementById('panelInput').value = '';
+  document.getElementById('resultsArea').style.display = 'none';
+  document.getElementById('noDataState').style.display = 'flex';
+  document.getElementById('notFoundMsg').innerHTML = '';
+  currentResults = [];
+});
+document.getElementById('statusFilter').addEventListener('change', () => currentResults.length && renderTable(currentResults));
+document.getElementById('sortBy').addEventListener('change', () => currentResults.length && renderTable(currentResults));
+document.getElementById('closeDetail').addEventListener('click', () => {
+  document.getElementById('detailPanel').style.display = 'none';
+  document.querySelectorAll('#geneTableBody tr').forEach(r=>r.classList.remove('selected'));
+});
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('tab-'+tab.dataset.tab).classList.add('active');
+  });
+});
+document.querySelectorAll('thead th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    const c = th.dataset.col;
+    if (colSort.col === c) colSort.dir *= -1; else { colSort.col = c; colSort.dir = 1; }
+    document.querySelectorAll('thead th').forEach(t => { t.classList.remove('sorted'); t.querySelector('.sort-arr').textContent='↕'; });
+    th.classList.add('sorted');
+    th.querySelector('.sort-arr').textContent = colSort.dir===1?'↑':'↓';
+    if (currentResults.length) renderTable(currentResults);
+  });
+});
+</script>
+</body>
+</html>
