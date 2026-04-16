@@ -82,7 +82,7 @@ export default function DetailPanel({ gene, lowRegions, onClose }) {
             </div>
             {gene.ps.sev && (
               <div>
-                <div style={{ fontSize: '10px', color: 'var(--text3)', textTransform: 'uppercase' }}>Críticos (>98% Homología)</div>
+                <div style={{ fontSize: '10px', color: 'var(--text3)', textTransform: 'uppercase' }}>Críticos (&gt;98% Homología)</div>
                 <div style={{ fontSize: '12px', fontFamily: 'var(--mono)', color: '#ef4444' }}>{gene.ps.sev}</div>
               </div>
             )}
