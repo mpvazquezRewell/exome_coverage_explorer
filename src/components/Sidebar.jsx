@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { PRESETS, parseGeneList } from '../utils';
-import { X } from 'lucide-react';
+import { X, Info, ChevronDown, ChevronUp } from 'lucide-react';
 
 export default function Sidebar({
   isOpen, setIsOpen,
@@ -13,6 +13,7 @@ export default function Sidebar({
   const [singleSearch, setSingleSearch] = useState('');
   const [panelInput, setPanelInput] = useState('');
   const [dragActive, setDragActive] = useState(false);
+  const [showRules, setShowRules] = useState(false);
   const fileInputRef = useRef(null);
 
   const handleDrag = (e) => {
@@ -194,6 +195,56 @@ export default function Sidebar({
           </div>
         </div>
       )}
+
+      <div className="sidebar-section">
+        <div className="sidebar-label">Help & Guidelines</div>
+        <button 
+          className="btn btn-sm" 
+          style={{ width: '100%', justifyContent: 'space-between', border: 'none', background: 'var(--surface2)', padding: '8px 12px' }}
+          onClick={() => setShowRules(!showRules)}
+        >
+          <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Info size={14} color="var(--accent)" /> Quality Thresholds
+          </span>
+          {showRules ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+        
+        {showRules && (
+          <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                <span className="badge badge-fail">FAIL</span>
+                <span style={{ color: 'var(--text)' }}>Strict Failure</span>
+              </div>
+              <p style={{ color: 'var(--text2)' }}>
+                Mean Coverage <strong>{"< 10X"}</strong>, or <strong>{">= 10 Recurrent"}</strong> low regions. 
+                Also if Coverage 10-20X but with low bases @ 20X or recurrent regions.
+              </p>
+            </div>
+            
+            <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                <span className="badge badge-warn">WARNING</span>
+                <span style={{ color: 'var(--text)' }}>Requires Review</span>
+              </div>
+              <p style={{ color: 'var(--text2)' }}>
+                Coverage <strong>{"< 50X"}</strong>, or <strong>{">= 2 Recurrent"}</strong> regions. 
+                <em> Note: Genes with 10-20X pass to Warning if Bases ≥20X ≥94% and 0 recurrent.</em>
+              </p>
+            </div>
+
+            <div style={{ fontSize: '11px', lineHeight: '1.4' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                <span className="badge badge-ok">OK</span>
+                <span style={{ color: 'var(--text)' }}>Pass</span>
+              </div>
+              <p style={{ color: 'var(--text2)' }}>
+                Mean Coverage <strong>{">= 50X"}</strong> and <strong>{"< 2 Recurrent"}</strong> regions.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
