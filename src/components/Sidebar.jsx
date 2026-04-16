@@ -40,16 +40,18 @@ export default function Sidebar({
     const fileArray = Array.from(files);
     const gFile = fileArray.find(f => f.name.includes('gene_level'));
     const lFile = fileArray.find(f => f.name.includes('low_region'));
+    const pFile = fileArray.find(f => f.name.includes('Pseudogenes'));
     
-    if (!gFile && !lFile) {
-      alert('Please drop gene_level_v2.csv and/or low_regions_v2.csv');
+    if (!gFile && !lFile && !pFile) {
+      alert('Please drop gene_level_v2.csv, low_regions_v2.csv and/or Pseudogenes_2026.csv');
       return;
     }
 
-    let geneText, lowText;
+    let geneText, lowText, pseudoText;
     if (gFile) geneText = await gFile.text();
     if (lFile) lowText = await lFile.text();
-    parseFiles(geneText, lowText);
+    if (pFile) pseudoText = await pFile.text();
+    parseFiles(geneText, lowText, pseudoText);
   };
 
   const handleSearch = () => {
@@ -99,7 +101,7 @@ export default function Sidebar({
         >
           <div className="load-zone-icon">{dataLoaded ? '✓' : '📂'}</div>
           <p><strong>{dataLoaded ? 'Data Loaded' : 'Drop CSV files here'}</strong></p>
-          <p style={{ marginTop: 4 }}>gene_level_v2.csv<br />low_regions_v2.csv</p>
+          <p style={{ marginTop: 4 }}>gene_level_v2.csv<br />low_regions_v2.csv<br />Pseudogenes_2026.csv</p>
           <input type="file" ref={fileInputRef} multiple accept=".csv" style={{ display: 'none' }} onChange={handleFileChange} />
           <div className="load-status" style={{ color: dataLoaded ? 'var(--ok)' : 'inherit' }}>{loadStatus}</div>
         </div>

@@ -61,6 +61,34 @@ export default function DetailPanel({ gene, lowRegions, onClose }) {
           <div className="detail-stat-val">{(gene.pge * 100).toFixed(1)}%</div>
         </div>
       </div>
+      
+      {gene.ps && (
+        <div style={{ margin: '16px 20px', padding: '12px 16px', background: 'rgba(245,158,11,0.08)', borderRadius: 'var(--radius)', border: '1px solid rgba(245,158,11,0.2)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+            <span style={{ fontSize: '16px' }}>⚠️</span>
+            <span style={{ fontSize: '14px', fontWeight: '500', color: '#f59e0b' }}>Pseudogen Detectado</span>
+          </div>
+          <p style={{ fontSize: '12px', color: 'var(--text2)', lineHeight: '1.4' }}>
+            Este gen tiene regiones de duplicación (pseudogén) que pueden interferir con el análisis por NGS.
+          </p>
+          <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '20px' }}>
+            <div>
+              <div style={{ fontSize: '10px', color: 'var(--text3)', textTransform: 'uppercase' }}>Transcript</div>
+              <div style={{ fontSize: '12px', fontFamily: 'var(--mono)', color: 'var(--text)' }}>{gene.ps.tx}</div>
+            </div>
+            <div>
+              <div style={{ fontSize: '10px', color: 'var(--text3)', textTransform: 'uppercase' }}>Exones Afectados</div>
+              <div style={{ fontSize: '12px', fontFamily: 'var(--mono)', color: 'var(--text)' }}>{gene.ps.exons}</div>
+            </div>
+            {gene.ps.sev && (
+              <div>
+                <div style={{ fontSize: '10px', color: 'var(--text3)', textTransform: 'uppercase' }}>Críticos (>98% Homología)</div>
+                <div style={{ fontSize: '12px', fontFamily: 'var(--mono)', color: '#ef4444' }}>{gene.ps.sev}</div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="tabs">
         <div className={`tab ${activeTab === 'low-regions' ? 'active' : ''}`} onClick={() => setActiveTab('low-regions')}>

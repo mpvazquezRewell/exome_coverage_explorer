@@ -27,17 +27,19 @@ export default function App() {
     const fetchDefaultData = async () => {
       setLoadStatus('Fetching default data...');
       try {
-        const [geneRes, lowRes] = await Promise.all([
+        const [geneRes, lowRes, pseudoRes] = await Promise.all([
           fetch('/gene_level_v2.csv').catch(() => null),
-          fetch('/low_regions_v2.csv').catch(() => null)
+          fetch('/low_regions_v2.csv').catch(() => null),
+          fetch('/Pseudogenes_2026.csv').catch(() => null)
         ]);
         
-        let geneText = null, lowText = null;
+        let geneText = null, lowText = null, pseudoText = null;
         if (geneRes && geneRes.ok) geneText = await geneRes.text();
         if (lowRes && lowRes.ok) lowText = await lowRes.text();
+        if (pseudoRes && pseudoRes.ok) pseudoText = await pseudoRes.text();
         
-        if (geneText || lowText) {
-          parseFiles(geneText, lowText);
+        if (geneText || lowText || pseudoText) {
+          parseFiles(geneText, lowText, pseudoText);
         } else {
           setLoadStatus('No default data. Drop CSV files below.');
         }
@@ -49,7 +51,7 @@ export default function App() {
     fetchDefaultData();
   }, []);
 
-  const parseFiles = (geneRaw, lowRaw) => {
+  const parseFiles = (geneRaw, lowRaw, pseudoRaw) => {
     setLoadStatus('Loading...');
     let tempGenes = {};
     let tempLow = {};
@@ -92,6 +94,28 @@ export default function App() {
           pct: parseFloat(r.Pct_samples_below_20X) || 0,
           status: r.Region_status || ''
         });
+      });
+    }
+    
+    // Parse Pseudogenes Data
+    if (pseudoRaw) {
+      const res = Papa.parse(pseudoRaw, { 
+        header: true, 
+        skipEmptyLines: true, 
+        delimiter: ";", 
+        transformHeader: h => h.trim().replace(/^\uFEFF/, '') 
+      });
+      
+      res.data.forEach((r) => {
+        if (!r.Gene || r.Gene.startsWith('(') || r.Gene === '') return;
+        const key = r.Gene.trim().toUpperCase();
+        if (tempGenes[key]) {
+          tempGenes[key].ps = {
+            exons: r['Affected exons'],
+            sev: r['Severely affected exons'],
+            tx: r['Transcript']
+          };
+        }
       });
     }
 

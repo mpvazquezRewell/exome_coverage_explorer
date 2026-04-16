@@ -236,9 +236,16 @@ export default function MainContent({ dataLoaded, hasSearched, notFound, filtere
                 </td>
                 <td><span style={{ color: g.rl > 0 ? '#ef4444' : 'var(--text3)' }}>{g.rl > 0 ? `${g.rl} regions` : '—'}</span></td>
                 <td>
-                   <span className={`badge ${g.st === 'FAIL' ? 'badge-fail' : g.st === 'WARNING' ? 'badge-warn' : 'badge-ok'}`}>
-                     {g.st}
-                   </span>
+                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                     <span className={`badge ${g.st === 'FAIL' ? 'badge-fail' : g.st === 'WARNING' ? 'badge-warn' : 'badge-ok'}`}>
+                       {g.st}
+                     </span>
+                     {g.ps && (
+                       <span style={{ fontSize: '9px', color: '#fbbf24', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                         ⚠️ Hay Pseudogen ({g.ps.exons})
+                       </span>
+                     )}
+                   </div>
                 </td>
               </tr>
             ))}
