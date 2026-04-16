@@ -95,23 +95,21 @@ export default function App() {
       });
     }
 
-    // Recompute Recurrent
-    if (Object.keys(tempLow).length > 0) {
-      Object.keys(tempGenes).forEach(key => {
-        const g = tempGenes[key];
-        const lowRegs = tempLow[key] || [];
-        const recCount = lowRegs.filter(r => r.status && r.status.includes('Recurrent')).length;
-        g.rl = recCount;
-        if (recCount >= 10 || g.mc < 20) {
-          if (g.mc >= 10 && g.pge >= 94 && recCount === 0) g.st = 'WARNING';
-          else g.st = 'FAIL';
-        } else if (recCount >= 2 || g.mc < 50) {
-          g.st = 'WARNING';
-        } else {
-          g.st = 'OK';
-        }
-      });
-    }
+    // Recompute Recurrent & Final Status
+    Object.keys(tempGenes).forEach(key => {
+      const g = tempGenes[key];
+      const lowRegs = tempLow[key] || [];
+      const recCount = lowRegs.filter(r => r.status && r.status.includes('Recurrent')).length;
+      g.rl = recCount;
+      if (recCount >= 10 || g.mc < 20) {
+        if (g.mc >= 10 && g.pge >= 0.94 && recCount === 0) g.st = 'WARNING';
+        else g.st = 'FAIL';
+      } else if (recCount >= 2 || g.mc < 50) {
+        g.st = 'WARNING';
+      } else {
+        g.st = 'OK';
+      }
+    });
 
     if (Object.keys(tempGenes).length > 0 || Object.keys(tempLow).length > 0) {
       setGenesData(tempGenes);
