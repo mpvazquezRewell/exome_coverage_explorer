@@ -172,6 +172,7 @@ export default function App() {
           <span className="topbar-logo">HÉRITAS</span>
           <div className="topbar-sep"></div>
           <span className="topbar-title">Exome 2.5 Coverage Explorer</span>
+          <span className="topbar-version"> | Desarrollado por Martin Vazquez, CSO, heritas. Version 1.0</span>
         </div>
         <div className="topbar-right">
           <div className="chip"><span className="chip-dot"></span>DRAGEN · Illumina Exome 2.5</div>

@@ -65,7 +65,8 @@ body {
 }
 .topbar-sep { width: 1px; height: 20px; background: var(--border2); }
 .topbar-title { font-size: 13px; color: var(--text2); display: none; }
-@media (min-width: 768px) { .topbar-title { display: block; } }
+.topbar-version { font-size: 10px; color: var(--text3); display: none; margin-left: 2px; }
+@media (min-width: 768px) { .topbar-title, .topbar-version { display: block; } }
 
 .topbar-right { display: flex; align-items: center; gap: 8px; }
 .chip {
